@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.example.happyghast.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "HappyGhastParkMixin"
+  ],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

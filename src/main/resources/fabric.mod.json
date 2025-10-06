@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "happyghastpark",
+  "version": "${version}",
+  "name": "Better Happy Ghast",
+  "description":  "Adds a parked state to the Happy Ghast: toggle with a Blaze Rod if it has a harness. While parked, the ghast stays still, and when mounted it flies at configurable double speed.",
+  "authors": ["Ivaanortega"],
+  "contact": {
+    "homepage": "https://github.com/ivaanortega/better-happy-ghast",
+    "issues": "https://github.com/ivaanortega/better-happy-ghast/issues",
+    "sources": "https://github.com/ivaanortega/better-happy-ghast"
+  },
+  "license": "MIT",
+"icon": "assets/happyghastpark/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.example.happyghast.HappyGhastParkMod"
+    ]
+  },
+  "mixins": [
+    "happyghast.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}",
+    "java": ">=21"
+  },
+  "suggests": {
+    "modmenu": "*"
+  }
+}
