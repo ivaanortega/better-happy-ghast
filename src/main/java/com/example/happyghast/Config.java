@@ -17,6 +17,12 @@ public class Config {
     public double maxSpeed              = 1.60;  // tope de velocidad (longitud del vector)
     public boolean debugLogs = false;     // ← activar/desactivar logs
     public int debugEveryTicks = 20;
+    /** Visual indicator while parked: "particles" | "glow" | "none" */
+    public String visualMode = "particles";
+    /** Particle theme for ground mark: "villager" | "soul" | "endrod" */
+    public String particleTheme = "endrod";
+    /** Particle style when visualMode = "particles": "ring" | "ground_mark" */
+    public String particleStyle = "ring";
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
@@ -45,6 +51,12 @@ public class Config {
     @Override public String toString() {
         return "{parkedSpeedMultiplier=" + parkedSpeedMultiplier +
                ", sprintMultiplier=" + sprintMultiplier +
-               ", maxSpeed=" + maxSpeed + "}";
+               ", maxSpeed=" + maxSpeed + 
+               ", debugLogs=" + debugLogs +
+               ", debugEveryTicks=" + debugEveryTicks + 
+               ", visualMode=" + visualMode + 
+               ", particleTheme=" + particleTheme +
+               ", particleStyle=" + particleStyle +
+               "}";
     }
 }

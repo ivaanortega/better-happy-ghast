@@ -35,6 +35,51 @@ public abstract class HappyGhastParkMixin {
     @Unique private int     hgDbgTick = 0;       // contador de logs
     @Unique private Double  hgBaseFly = null;    // cache del FLYING_SPEED base
 
+    @Unique
+    private net.minecraft.particle.ParticleEffect bhg$themeParticle() {
+        String theme = (HappyGhastParkMod.CONFIG != null ? HappyGhastParkMod.CONFIG.particleTheme : "villager");
+        if ("soul".equalsIgnoreCase(theme)) {
+            return ParticleTypes.SOUL_FIRE_FLAME;
+        } else if ("endrod".equalsIgnoreCase(theme)) {
+            return ParticleTypes.END_ROD;
+        } else {
+            // default
+            return ParticleTypes.HAPPY_VILLAGER;
+        }
+    }
+
+    @Unique
+    private void bhg$spawnGroundMark(ServerWorld sw, HappyGhastEntity self, int points, double radius) {
+        // Posición base: justo por debajo del hitbox
+        var box = self.getBoundingBox();
+        double centerX = self.getX();
+        double centerZ = self.getZ();
+        double baseY   = box.minY - 0.05;
+
+        // Intentar “apoyar” la marca en el primer bloque sólido bajo el ghast (1–3 bloques)
+        double y = baseY;
+        var pos = net.minecraft.util.math.BlockPos.ofFloored(centerX, box.minY - 0.1, centerZ);
+        for (int i = 0; i < 3; i++) {
+            var below = pos.down(i + 1);
+            var bs = sw.getBlockState(below);
+            if (!bs.isAir()) {
+                y = below.getY() + 0.02; // apenas por encima para evitar z-fighting
+                break;
+            }
+        }
+
+        var type = bhg$themeParticle();
+        // Dibujar anillo
+        for (int i = 0; i < points; i++) {
+            double angle = (Math.PI * 2.0 / points) * i + (self.age % 20) * 0.15;
+            double x = centerX + Math.cos(angle) * radius;
+            double z = centerZ + Math.sin(angle) * radius;
+            // Spread mínimo para “chisporroteo” suave
+            sw.spawnParticles(type, x, y, z, 1, 0.02, 0.01, 0.02, 0.0);
+        }
+    }
+
+
     // ===== Persistencia =====
     @Inject(method = "writeCustomData", at = @At("TAIL"))
     private void bhg$write(WriteView view, CallbackInfo ci) {
@@ -46,6 +91,12 @@ public abstract class HappyGhastParkMixin {
     private void bhg$read(ReadView view, CallbackInfo ci) {
         this.hgParked = view.getInt("BHGParked", 0) != 0;
         if (view.contains("BHGBaseFly")) this.hgBaseFly = view.getDouble("BHGBaseFly", 0.05);
+        HappyGhastEntity self = (HappyGhastEntity)(Object)this;
+            String vm = (HappyGhastParkMod.CONFIG != null ? HappyGhastParkMod.CONFIG.visualMode : "particles");
+            if (!"glow".equalsIgnoreCase(vm) && self.isGlowing()) {
+                self.setGlowing(false);
+        }
+
     }
 
     // ===== Toggle con Blaze Rod (requiere harness) =====
@@ -66,24 +117,47 @@ public abstract class HappyGhastParkMixin {
 
             if (this.hgParked) {
                 player.sendMessage(Text.literal("Happy Ghast parked."), true);
-                self.setGlowing(true);
+
+                String vm = (HappyGhastParkMod.CONFIG != null ? HappyGhastParkMod.CONFIG.visualMode : "particles");
+                if ("glow".equalsIgnoreCase(vm)) {
+                    self.setGlowing(true);
+                } else {
+                    if (self.isGlowing()) self.setGlowing(false);
+                }
+
                 self.playSound(SoundEvents.BLOCK_NOTE_BLOCK_BELL.value(), 1.0f, 1.0f);
 
-                if (self.getEntityWorld() instanceof ServerWorld sw) {
-                    Vec3d p = new Vec3d(self.getX(), self.getY() + self.getHeight()*0.5, self.getZ());
-                    Random r = self.getRandom();
-                    for (int i = 0; i < 20; i++) {
-                        double dx = (r.nextDouble() - 0.5) * 1.2;
-                        double dy = (r.nextDouble() - 0.5) * 0.8;
-                        double dz = (r.nextDouble() - 0.5) * 1.2;
-                        sw.spawnParticles(ParticleTypes.GLOW, p.x, p.y, p.z, 1, dx, dy, dz, 0.02);
+                if ("particles".equalsIgnoreCase(vm) && self.getEntityWorld() instanceof ServerWorld sw) {
+                    String style = (HappyGhastParkMod.CONFIG != null ? HappyGhastParkMod.CONFIG.particleStyle : "ground_mark");
+                    if ("ground_mark".equalsIgnoreCase(style)) {
+                        // Marca en el suelo: burst inicial más denso
+                        double radius = Math.max(self.getWidth() * 0.55, 0.9);
+                        for (int r = 0; r < 2; r++) {
+                            bhg$spawnGroundMark(sw, self, 20, radius + r * 0.15);
+                        }
+                    } else {
+                        // “ring” clásico (alrededor del cuerpo, debajo)
+                        var box = self.getBoundingBox();
+                        double y = box.minY + 0.2;
+                        double radius = Math.max(self.getWidth() * 0.55, 0.9);
+                        var type = bhg$themeParticle();
+                        for (int i = 0; i < 24; i++) {
+                            double angle = (Math.PI * 2.0 / 24.0) * i;
+                            double x = self.getX() + Math.cos(angle) * radius;
+                            double z = self.getZ() + Math.sin(angle) * radius;
+                            sw.spawnParticles(type, x, y, z, 1, 0.0, 0.01, 0.0, 0.0);
+                        }
                     }
                 }
             } else {
                 player.sendMessage(Text.literal("Happy Ghast released."), true);
-                self.setGlowing(false);
+                String vm = (HappyGhastParkMod.CONFIG != null ? HappyGhastParkMod.CONFIG.visualMode : "particles");
+                if (!"glow".equalsIgnoreCase(vm) && self.isGlowing()) self.setGlowing(false);
+                if ("glow".equalsIgnoreCase(vm)) self.setGlowing(false);
                 self.playSound(SoundEvents.BLOCK_NOTE_BLOCK_BELL.value(), 1.0f, 0.5f);
             }
+
+
 
             if (HappyGhastParkMod.CONFIG != null && HappyGhastParkMod.CONFIG.debugLogs) {
                 System.out.println(String.format(
@@ -128,12 +202,47 @@ public abstract class HappyGhastParkMixin {
     private void bhg$tick(CallbackInfo ci) {
         HappyGhastEntity self = (HappyGhastEntity)(Object)this;
 
-        // glowing según estado
-        if (this.hgParked) {
-            if (!self.isGlowing()) self.setGlowing(true);
-        } else if (self.isGlowing()) {
+        // Visual según estado y config
+        String vm = (HappyGhastParkMod.CONFIG != null ? HappyGhastParkMod.CONFIG.visualMode : "particles");
+        if (!"glow".equalsIgnoreCase(vm) && self.isGlowing()) {
             self.setGlowing(false);
         }
+
+        if ("glow".equalsIgnoreCase(vm)) {
+            if (this.hgParked) {
+                if (!self.isGlowing()) self.setGlowing(true);
+            } else if (self.isGlowing()) {
+                self.setGlowing(false);
+            }
+        } else if ("particles".equalsIgnoreCase(vm)) {
+            if (this.hgParked && self.getEntityWorld() instanceof ServerWorld sw && (self.age % 10) == 0) {
+                String style = (HappyGhastParkMod.CONFIG != null ? HappyGhastParkMod.CONFIG.particleStyle : "ground_mark");
+                double radius = Math.max(self.getWidth() * 0.55, 0.9);
+
+                if ("ground_mark".equalsIgnoreCase(style)) {
+                    // marca en el suelo “viva”
+                    bhg$spawnGroundMark(sw, self, 12, radius);
+                } else {
+                    // anillo bajo el cuerpo
+                    var box = self.getBoundingBox();
+                    double y = box.minY + 0.2;
+                    var type = bhg$themeParticle();
+                    int points = 8;
+                    for (int i = 0; i < points; i++) {
+                        double angle = (Math.PI * 2.0 / points) * i + (self.age % 20) * 0.1;
+                        double x = self.getX() + Math.cos(angle) * radius;
+                        double z = self.getZ() + Math.sin(angle) * radius;
+                        sw.spawnParticles(type, x, y, z, 1, 0.02, 0.01, 0.02, 0.0);
+                    }
+                }
+            }
+        } else {
+            if (self.isGlowing()) self.setGlowing(false);
+        }
+
+
+
+
 
         // FLYING_SPEED base
         EntityAttributeInstance fly = self.getAttributeInstance(EntityAttributes.FLYING_SPEED);
