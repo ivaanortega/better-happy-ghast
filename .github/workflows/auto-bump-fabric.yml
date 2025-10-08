@@ -81,8 +81,16 @@ jobs:
           # Opcional: sincroniza sufijo del mod con el MC nuevo
           sed -i "s/^mod_version=.*mc.*/mod_version=$(grep '^mod_version=' gradle.properties | cut -d'=' -f2 | sed "s/+mc.*/+mc${MC}/")/" gradle.properties
 
-      - name: Grant execute permission for gradlew
+      - name: Validate Gradle Wrapper
+        uses: gradle/wrapper-validation-action@v2
+
+      - name: Ensure gradlew is executable
         run: chmod +x gradlew
+
+      - name: Check wrapper jar exists
+        run: |
+          test -f gradle/wrapper/gradle-wrapper.jar \
+            || { echo "gradle-wrapper.jar missing. Did you commit it?"; exit 1; }
 
       - name: Build
         run: ./gradlew --no-daemon clean build
