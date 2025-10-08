@@ -1,0 +1,98 @@
+# This is a basic workflow that is manually triggered
+name: Auto-bump Fabric (MC/Yarn/Loader/API)
+
+on:
+  schedule:
+    - cron: "30 8 * * *" # diario a las 05:17 UTC
+  workflow_dispatch:
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Compute latest versions
+        id: compute
+        run: |
+          set -euo pipefail
+
+          # 1) Última versión estable de Minecraft
+          MC=$(curl -s https://meta.fabricmc.net/v2/versions/game | jq -r '[.[] | select(.stable == true) | .version][0]')
+          echo "minecraft=$MC"
+
+          # 2) Yarn mappings para ese MC (última build)
+          YARN=$(curl -s https://meta.fabricmc.net/v2/versions/yarn/$MC | jq -r '.[0].gameVersion + "+build." + (.[0].build|tostring)')
+          echo "yarn=$YARN"
+
+          # 3) Loader (último estable)
+          LOADER=$(curl -s https://meta.fabricmc.net/v2/versions/loader | jq -r '.[0].version')
+          echo "loader=$LOADER"
+
+          # 4) Fabric API compatible (vía Modrinth)
+          # Filtro: loader=fabric y ese game_version
+          # Nota: escapamos JSON en la query
+          FABRIC_API=$(curl -sG "https://api.modrinth.com/v2/project/fabric-api/version" \
+            --data-urlencode "game_versions=[\"$MC\"]" \
+            --data-urlencode "loaders=[\"fabric\"]" \
+            | jq -r '[ .[] | select(.version_number | test("^\\d+\\.\\d+\\.")) ] | sort_by(.date_published) | last.version_number')
+          # Si no encontró nada, caemos al último por fecha:
+          if [ -z "$FABRIC_API" ] || [ "$FABRIC_API" = "null" ]; then
+            FABRIC_API=$(curl -sG "https://api.modrinth.com/v2/project/fabric-api/version" \
+              --data-urlencode "loaders=[\"fabric\"]" \
+              | jq -r '[ .[] ] | sort_by(.date_published) | last.version_number')
+          fi
+          echo "fabric_api=$FABRIC_API"
+
+          echo "minecraft_version=$MC" >> $GITHUB_OUTPUT
+          echo "yarn_mappings=$YARN"   >> $GITHUB_OUTPUT
+          echo "loader_version=$LOADER" >> $GITHUB_OUTPUT
+          echo "fabric_version=$FABRIC_API" >> $GITHUB_OUTPUT
+
+      - name: Update gradle.properties
+        run: |
+          set -euo pipefail
+          MC="${{ steps.compute.outputs.minecraft_version }}"
+          YARN="${{ steps.compute.outputs.yarn_mappings }}"
+          LOADER="${{ steps.compute.outputs.loader_version }}"
+          FABAPI="${{ steps.compute.outputs.fabric_version }}"
+
+          # Actualiza propiedades
+          sed -i "s/^minecraft_version=.*/minecraft_version=${MC}/" gradle.properties
+          sed -i "s/^yarn_mappings=.*/yarn_mappings=${YARN}/" gradle.properties
+          sed -i "s/^loader_version=.*/loader_version=${LOADER}/" gradle.properties
+          sed -i "s/^fabric_version=.*/fabric_version=${FABAPI}/" gradle.properties
+
+          # Opcional: sincroniza sufijo del mod con el MC nuevo
+          sed -i "s/^mod_version=.*mc.*/mod_version=$(grep '^mod_version=' gradle.properties | cut -d'=' -f2 | sed "s/+mc.*/+mc${MC}/")/" gradle.properties
+
+      - name: Gradle build
+        run: ./gradlew --no-daemon clean build
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore: bump MC/Loader/Yarn/Fabric API"
+          title: "chore: bump MC/Loader/Yarn/Fabric API"
+          body: |
+            - Minecraft: `${{ steps.compute.outputs.minecraft_version }}`
+            - Yarn: `${{ steps.compute.outputs.yarn_mappings }}`
+            - Loader: `${{ steps.compute.outputs.loader_version }}`
+            - Fabric API: `${{ steps.compute.outputs.fabric_version }}`
+          branch: chore/auto-bump-fabric
+          labels: dependencies, automated-pr
