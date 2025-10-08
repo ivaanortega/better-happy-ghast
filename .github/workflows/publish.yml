@@ -1,0 +1,48 @@
+name: Publish to CurseForge
+
+on:
+  push:
+    tags:
+      - "v*"          # ej. v1.2.3
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build
+        run: ./gradlew --no-daemon clean build
+
+      - name: Publish (CurseForge)
+        uses: Kir-Antipov/mc-publish@v3
+        with:
+          curseforge-id: 1360171
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+
+          # El/los archivos a subir (ajusta si usas classifier o múltiples jars)
+          files: |
+            build/libs/*-all.jar
+            build/libs/*.jar
+
+          # Opcional: detecta automáticamente version de MC/loader desde el jar/manifest
+          loaders: fabric
+          game-versions: auto
+
+          # Opcional: relaciones (depende de tu mod)
+          # curseforge-dependencies: |
+          #   fabric-api:required
+
+          # Opcional: changelog
+          changelog: "Automated release from CI."
+          release-type: release   # release | beta | alpha
