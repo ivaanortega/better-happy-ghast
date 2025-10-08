@@ -3,7 +3,7 @@ name: Publish to CurseForge
 on:
   push:
     tags:
-      - "v*"          # ej. v1.2.3
+      - "v*"
   workflow_dispatch:
 
 jobs:
@@ -15,8 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup JDK
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
@@ -24,25 +23,39 @@ jobs:
       - name: Build
         run: ./gradlew --no-daemon clean build
 
+      # Lee versiones desde gradle.properties
+      - name: Read versions
+        id: v
+        shell: bash
+        run: |
+          MC=$(grep '^minecraft_version=' gradle.properties | cut -d= -f2)
+          echo "mc=$MC" >> $GITHUB_OUTPUT
+          MODV=$(grep '^mod_version=' gradle.properties | cut -d= -f2)
+          echo "modv=$MODV" >> $GITHUB_OUTPUT
+          # changelog mínimo
+          {
+            echo "Version: $MODV"
+            echo "- Minecraft: $MC"
+          } > CHANGELOG_CI.md
+
       - name: Publish (CurseForge)
         uses: Kir-Antipov/mc-publish@v3
         with:
           curseforge-id: 1360171
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
 
-          # El/los archivos a subir (ajusta si usas classifier o múltiples jars)
+          # Artefactos (ajusta si usas classifier)
           files: |
-            build/libs/*-all.jar
+            build/libs/*.jar
+          files-primary: |
             build/libs/*.jar
 
-          # Opcional: detecta automáticamente version de MC/loader desde el jar/manifest
+          # Loader + versión de juego (EXPLÍCITA)
           loaders: fabric
-          game-versions: auto
+          game-versions: ${{ steps.v.outputs.mc }}
 
-          # Opcional: relaciones (depende de tu mod)
-          # curseforge-dependencies: |
-          #   fabric-api:required
+          # Tipo de versión (en vez de 'release-type')
+          version-type: release   # o beta | alpha
 
-          # Opcional: changelog
-          changelog: "Automated release from CI."
-          release-type: release   # release | beta | alpha
+          # Changelog
+          changelog-file: CHANGELOG_CI.md
