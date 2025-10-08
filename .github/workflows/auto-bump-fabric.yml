@@ -81,7 +81,10 @@ jobs:
           # Opcional: sincroniza sufijo del mod con el MC nuevo
           sed -i "s/^mod_version=.*mc.*/mod_version=$(grep '^mod_version=' gradle.properties | cut -d'=' -f2 | sed "s/+mc.*/+mc${MC}/")/" gradle.properties
 
-      - name: Gradle build
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build
         run: ./gradlew --no-daemon clean build
 
       - name: Create Pull Request
