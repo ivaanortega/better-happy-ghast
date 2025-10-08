@@ -29,3 +29,6 @@ crash-reports/
 
 # Fabric Loom cache
 .remapped/
+
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
