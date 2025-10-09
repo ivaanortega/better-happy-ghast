@@ -82,7 +82,7 @@ jobs:
           sed -i "s/^mod_version=.*mc.*/mod_version=$(grep '^mod_version=' gradle.properties | cut -d'=' -f2 | sed "s/+mc.*/+mc${MC}/")/" gradle.properties
 
       - name: Validate Gradle Wrapper
-        uses: gradle/wrapper-validation-action@v3
+        uses: gradle/actions/wrapper-validation@v3
         continue-on-error: true
         
       - name: Fallback - basic wrapper check
