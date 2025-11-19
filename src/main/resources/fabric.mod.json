@@ -16,6 +16,9 @@
   "entrypoints": {
     "main": [
       "com.example.happyghast.HappyGhastParkMod"
+    ],
+    "client": [
+      "com.example.happyghast.HappyGhastParkModClient"
     ]
   },
   "mixins": [

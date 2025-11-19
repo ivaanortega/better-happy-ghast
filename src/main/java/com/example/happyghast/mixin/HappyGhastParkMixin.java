@@ -8,6 +8,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.example.happyghast.HappyGhastParkMod;
+import com.example.happyghast.HappyGhastSprintable;
 
 import net.minecraft.entity.attribute.EntityAttributeInstance;
 import net.minecraft.entity.attribute.EntityAttributes;
@@ -28,10 +29,11 @@ import net.minecraft.storage.WriteView;
 import net.minecraft.storage.ReadView;
 
 @Mixin(HappyGhastEntity.class)
-public abstract class HappyGhastParkMixin {
+public abstract class HappyGhastParkMixin implements HappyGhastSprintable {
 
-    @Unique private boolean hgParked = false;    // estado “sentado”
-    @Unique private boolean hgSprint = false;    // sprint del jinete (latched desde input)
+    @Unique private boolean hgParked = false;    // estado "sentado"
+    @Unique private boolean hgSprint = false;    // sprint del jinete (latched desde input) - deprecated
+    @Unique private boolean hgCustomSprint = false;  // custom sprint flag for keybinding
     @Unique private int     hgDbgTick = 0;       // contador de logs
     @Unique private Double  hgBaseFly = null;    // cache del FLYING_SPEED base
 
@@ -46,6 +48,17 @@ public abstract class HappyGhastParkMixin {
             // default
             return ParticleTypes.HAPPY_VILLAGER;
         }
+    }
+
+    // Implementation of HappyGhastSprintable interface
+    @Unique
+    public boolean isCustomSprinting() {
+        return this.hgCustomSprint;
+    }
+
+    @Unique
+    public void setCustomSprinting(boolean sprinting) {
+        this.hgCustomSprint = sprinting;
     }
 
     @Unique
@@ -176,17 +189,6 @@ public abstract class HappyGhastParkMixin {
         }
     }
 
-    // ===== Capturar sprint del jinete desde el input controlado =====
-    // (Solo guardamos el flag; la aceleración real se aplica en tick con atributo)
-    @Inject(method = "getControlledMovementInput", at = @At("HEAD"))
-    private void bhg$captureSprint(PlayerEntity controllingPlayer, Vec3d movementInput, CallbackInfoReturnable<Vec3d> cir) {
-        HappyGhastEntity self = (HappyGhastEntity)(Object)this;
-        if (this.hgParked && self.hasPassengers()) {
-            this.hgSprint = controllingPlayer != null && controllingPlayer.isSprinting();
-        } else {
-            this.hgSprint = false;
-        }
-    }
 
     // ===== “Quieto” cuando está sentado sin jinete =====
     @Inject(method = "isStill", at = @At("HEAD"), cancellable = true)
@@ -262,10 +264,10 @@ public abstract class HappyGhastParkMixin {
         boolean hasPassenger = self.hasPassengers();
 
         if (this.hgParked && hasPassenger) {
-            // multiplicador total
+            // multiplicador total - use custom sprint flag instead of the old player.isSprinting() based flag
             double parkedMul = (HappyGhastParkMod.CONFIG != null ? HappyGhastParkMod.CONFIG.parkedSpeedMultiplier : 2.0);
             double sprintMul = (HappyGhastParkMod.CONFIG != null ? HappyGhastParkMod.CONFIG.sprintMultiplier : 1.25);
-            double totalMul  = parkedMul * (this.hgSprint ? sprintMul : 1.0);
+            double totalMul  = parkedMul * (this.hgCustomSprint ? sprintMul : 1.0);
 
             if (fly != null && this.hgBaseFly != null) {
                 double before = fly.getBaseValue();
@@ -275,8 +277,8 @@ public abstract class HappyGhastParkMixin {
                 if (HappyGhastParkMod.CONFIG != null && HappyGhastParkMod.CONFIG.debugLogs) {
                     System.out.println(String.format(
                         "[HappyGhastPark] attr: parked=%s sprint=%s | baseFly=%.4f -> target=%.4f (mul=%.2f=%.2f%s%.2f)",
-                        this.hgParked, this.hgSprint, this.hgBaseFly, target, totalMul, parkedMul,
-                        (this.hgSprint ? "x" : ""), (this.hgSprint ? sprintMul : 1.0)
+                        this.hgParked, this.hgCustomSprint, this.hgBaseFly, target, totalMul, parkedMul,
+                        (this.hgCustomSprint ? "x" : ""), (this.hgCustomSprint ? sprintMul : 1.0)
                     ));
                 }
             }
@@ -298,7 +300,7 @@ public abstract class HappyGhastParkMixin {
                     Vec3d vv = self.getVelocity();
                     System.out.println(String.format(
                         "[HappyGhastPark] tick: parked=%s sprint=%s speed=%.3f max=%.3f clamped=%s | pos=(%.2f, %.2f, %.2f) vel=(%.3f, %.3f, %.3f)",
-                        this.hgParked, this.hgSprint, vv.length(), max, clamped,
+                        this.hgParked, this.hgCustomSprint, vv.length(), max, clamped,
                         self.getX(), self.getY(), self.getZ(),
                         vv.x, vv.y, vv.z
                     ));
@@ -313,6 +315,7 @@ public abstract class HappyGhastParkMixin {
                 }
             }
             this.hgSprint = false;
+            this.hgCustomSprint = false;
         }
     }
 }
